@@ -23,6 +23,7 @@
     ' ✅ Límites y reglas
     Public limite_diario_envios As Integer = 110
     Public buffer_manana As Integer = 25
+
     Public maxDiaSeguimiento As Integer = 2
 
     ' Ventana principal de envíos (Mar-Jue)

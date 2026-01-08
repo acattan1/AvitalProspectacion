@@ -34,6 +34,7 @@ Partial Class Form1
     Friend WithEvents Button4 As Button
     Friend WithEvents Button5 As Button
     Friend WithEvents Button6 As Button
+    Friend WithEvents btnAgregarContactosActivos As Button
 
     Friend WithEvents grpPrincipal As GroupBox
     Friend WithEvents grpPruebas As GroupBox
@@ -58,6 +59,7 @@ Partial Class Form1
         Button4 = New Button()
         Button5 = New Button()
         Button6 = New Button()
+        btnAgregarContactosActivos = New Button()
         grpPrincipal = New GroupBox()
         grpPruebas = New GroupBox()
         grpAgenda = New GroupBox()
@@ -142,16 +144,16 @@ Partial Class Form1
         ' 
         btnGenerarAgendaHoy.Location = New Point(20, 25)
         btnGenerarAgendaHoy.Name = "btnGenerarAgendaHoy"
-        btnGenerarAgendaHoy.Size = New Size(220, 30)
+        btnGenerarAgendaHoy.Size = New Size(200, 30)
         btnGenerarAgendaHoy.TabIndex = 0
         btnGenerarAgendaHoy.Text = "GENERAR AGENDA HOY + BUFFER"
         btnGenerarAgendaHoy.UseVisualStyleBackColor = True
         ' 
         ' btnProbarEnviosHoy
         ' 
-        btnProbarEnviosHoy.Location = New Point(250, 25)
+        btnProbarEnviosHoy.Location = New Point(230, 25)
         btnProbarEnviosHoy.Name = "btnProbarEnviosHoy"
-        btnProbarEnviosHoy.Size = New Size(220, 30)
+        btnProbarEnviosHoy.Size = New Size(200, 30)
         btnProbarEnviosHoy.TabIndex = 1
         btnProbarEnviosHoy.Text = "PROBAR ENVIAR 1 (AHORA)"
         btnProbarEnviosHoy.UseVisualStyleBackColor = True
@@ -210,6 +212,14 @@ Partial Class Form1
         Button6.Text = "Button6"
         Button6.UseVisualStyleBackColor = True
         ' 
+        ' btnAgregarContactosActivos
+        ' 
+        btnAgregarContactosActivos.Location = New Point(440, 25)
+        btnAgregarContactosActivos.Name = "btnAgregarContactosActivos"
+        btnAgregarContactosActivos.Size = New Size(200, 30)
+        btnAgregarContactosActivos.TabIndex = 2
+        btnAgregarContactosActivos.Text = "AGREGAR CONTACTOS ACTIVOS"
+        btnAgregarContactosActivos.UseVisualStyleBackColor = True
         ' grpPrincipal
         ' 
         grpPrincipal.Controls.Add(btniniciar)
@@ -243,6 +253,7 @@ Partial Class Form1
         ' 
         grpAgenda.Controls.Add(txtcorreoprueba)
         grpAgenda.Controls.Add(btnCorreoPrueba)
+        grpAgenda.Controls.Add(btnAgregarContactosActivos)
         grpAgenda.Controls.Add(btnGenerarAgendaHoy)
         grpAgenda.Controls.Add(btnProbarEnviosHoy)
         grpAgenda.Location = New Point(12, 108)
@@ -254,18 +265,18 @@ Partial Class Form1
         ' 
         ' txtcorreoprueba
         ' 
-        txtcorreoprueba.Location = New Point(746, 23)
+        txtcorreoprueba.Location = New Point(860, 23)
         txtcorreoprueba.Name = "txtcorreoprueba"
         txtcorreoprueba.Size = New Size(100, 23)
-        txtcorreoprueba.TabIndex = 3
+        txtcorreoprueba.TabIndex = 4
         txtcorreoprueba.Text = "abraham@avital.mx"
         ' 
         ' btnCorreoPrueba
         ' 
-        btnCorreoPrueba.Location = New Point(476, 22)
+        btnCorreoPrueba.Location = New Point(650, 22)
         btnCorreoPrueba.Name = "btnCorreoPrueba"
-        btnCorreoPrueba.Size = New Size(220, 30)
-        btnCorreoPrueba.TabIndex = 2
+        btnCorreoPrueba.Size = New Size(200, 30)
+        btnCorreoPrueba.TabIndex = 3
         btnCorreoPrueba.Text = "PROBAR ENVIAR 1 (AHORA)"
         btnCorreoPrueba.UseVisualStyleBackColor = True
         ' 

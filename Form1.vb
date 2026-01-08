@@ -104,6 +104,22 @@ Public Class Form1
         ' 4. Mostrar estado final
         EscribirLog("=== PRUEBA COMPLETADA ===")
     End Sub
+    Private Sub btnAgregarContactosActivos_Click(sender As Object, e As EventArgs) Handles btnAgregarContactosActivos.Click
+        Try
+            If ba.State <> 1 Then
+                ba.Open(rutabd)
+            End If
+
+            ProgramarContactosAdicionalesEmpresasActivas()
+            MessageBox.Show("✅ Validación completada. Revisa el log para detalles.", "Listo", MessageBoxButtons.OK, MessageBoxIcon.Information)
+        Catch ex As Exception
+            MessageBox.Show("❌ Error validando contactos activos: " & ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error)
+            EscribirLog("❌ Error validando contactos activos: " & ex.Message)
+        Finally
+            If ba.State = 1 Then ba.Close()
+        End Try
+    End Sub
+
 
     Private Sub btnVerEstado_Click(sender As Object, e As EventArgs) Handles btnVerEstado.Click
         Dim estado = ""
@@ -155,6 +171,9 @@ Public Class Form1
         If EsHorarioPermitidoMensaje1() Then
             ProgramarHoyYBuffer_Mensaje1()
         End If
+
+        ' 2.1) Programar seguimientos (días 2+ con límite configurable)
+        ProgramarSeguimientosHoyYManana(maxDiaSeguimiento)
 
         ' 3) Enviar 1 correo pendiente (sin tandas, sin sleeps)
         If EsHorarioPermitidoEnvio() Then
@@ -695,6 +714,89 @@ Public Class Form1
         End Try
     End Sub
 
+    Private Sub ProgramarContactosAdicionalesEmpresasActivas()
+        Try
+            Dim hoy As DateTime = DateTime.Today
+            If Not EsDiaPermitidoMensaje1(hoy) Then
+                EscribirLog("⏸️ Hoy no es día permitido para Mensaje 1. No se agregan contactos activos.")
+                Exit Sub
+            End If
+
+            Dim programadosHoy As Integer = ContarProgramadosPorDia(hoy)
+            Dim capacidadDisponible As Integer = limite_diario_envios - programadosHoy
+
+            If capacidadDisponible <= 0 Then
+                EscribirLog("⏸️ Sin capacidad disponible para hoy (límite " & limite_diario_envios & ")")
+                Exit Sub
+            End If
+
+            EscribirLog("🔎 Buscando nuevos contactos en empresas activas. Cupo disponible: " & capacidadDisponible)
+
+            Dim rsEmpresas As New ADODB.Recordset
+            Dim sqlEmpresas As String =
+                "SELECT e.cia, COUNT(p.id) AS contactos_validos " &
+                "FROM listaempresas e " &
+                "INNER JOIN prospectos p ON e.cia = p.cia " &
+                "WHERE e.con_contactos_en_secuencia = True " &
+                "AND e.conerror = False " &
+                "AND p.en_secuencia = False " &
+                "AND p.mail IS NOT NULL " &
+                "AND p.mailincorrecto = False " &
+                "GROUP BY e.cia " &
+                "HAVING COUNT(p.id) >= 1 " &
+                "ORDER BY COUNT(p.id) DESC"
+
+            rsEmpresas.Open(sqlEmpresas, ba, ADODB.CursorTypeEnum.adOpenStatic, ADODB.LockTypeEnum.adLockReadOnly)
+
+            Dim restantes As Integer = capacidadDisponible
+            Dim empresasActualizadas As Integer = 0
+
+            While Not rsEmpresas.EOF AndAlso restantes > 0
+                Dim cia As String = rsEmpresas.Fields("cia").Value.ToString()
+                Dim contactosValidos As Integer = CInt(rsEmpresas.Fields("contactos_validos").Value)
+
+                EscribirLog("🏢 Empresa activa con nuevos contactos: " & cia & " | Pendientes=" & contactosValidos)
+
+                If contactosValidos > restantes Then
+                    EscribirLog("   ⏭️ Omitida hoy: contactos " & contactosValidos & " > espacio disponible " & restantes)
+                    rsEmpresas.MoveNext()
+                    Continue While
+                End If
+
+                Dim listaPros As List(Of ContactoAgenda) = ObtenerProspectosElegiblesDeEmpresa(cia)
+                If listaPros.Count = 0 Then
+                    rsEmpresas.MoveNext()
+                    Continue While
+                End If
+
+                If listaPros.Count > restantes Then
+                    EscribirLog("   ⏭️ Omitida hoy: contactos filtrados " & listaPros.Count &
+                                " > espacio disponible " & restantes)
+                    rsEmpresas.MoveNext()
+                    Continue While
+                End If
+
+                Dim ultimasHoy As New Dictionary(Of String, DateTime)(StringComparer.OrdinalIgnoreCase)
+                Dim rnd As New Random()
+                ProgramarEmpresaMensaje1EnDia(cia, listaPros, hoy, ultimasHoy, rnd)
+                restantes -= listaPros.Count
+                empresasActualizadas += 1
+
+                EscribirLog("   ✅ Contactos agregados. Restantes hoy: " & restantes)
+                rsEmpresas.MoveNext()
+            End While
+
+            rsEmpresas.Close()
+
+            EscribirLog("=== VALIDACIÓN CONTACTOS ACTIVOS COMPLETADA ===")
+            EscribirLog("   Empresas actualizadas: " & empresasActualizadas)
+            EscribirLog("   Espacio restante hoy: " & restantes & " correos")
+
+        Catch ex As Exception
+            EscribirLog("❌ Error ProgramarContactosAdicionalesEmpresasActivas: " & ex.Message)
+        End Try
+    End Sub
+
     Private Sub ProgramarEmpresaMensaje1EnDia(cia As String, prospectos As List(Of ContactoAgenda), fechaDia As DateTime,
                                              ByRef ultimasPorRol As Dictionary(Of String, DateTime), rnd As Random)
 
@@ -771,6 +873,134 @@ Public Class Form1
             EscribirLog("❌ Error ProgramarMensaje1EnFecha: " & ex.Message)
         End Try
     End Sub
+
+    Private Sub ProgramarSeguimientosHoyYManana(maxDiaSeguimiento As Integer)
+        If maxDiaSeguimiento < 2 Then
+            EscribirLog("⚠️ maxDiaSeguimiento < 2, no se programan seguimientos.")
+            Return
+        End If
+
+        Dim maxDiaAplicado As Integer = Math.Min(maxDiaSeguimiento, 5)
+        Dim hoy As DateTime = DateTime.Today
+        Dim manana As DateTime = hoy.AddDays(1)
+
+        Try
+            Dim rsBase As New ADODB.Recordset
+            Dim sqlBase As String =
+                "SELECT ep.contacto_id, ep.secuencia_id, ep.fecha_programada " &
+                "FROM (envios_programados ep " &
+                "INNER JOIN mensajes m ON ep.mensaje_id = m.id) " &
+                "WHERE m.dia_numero = 1"
+
+            rsBase.Open(sqlBase, ba, ADODB.CursorTypeEnum.adOpenStatic, ADODB.LockTypeEnum.adLockReadOnly)
+
+            While Not rsBase.EOF
+                Dim contactoId As Integer = CInt(rsBase.Fields("contacto_id").Value)
+                Dim secuenciaId As Integer = CInt(rsBase.Fields("secuencia_id").Value)
+                Dim fechaDia1 As DateTime = CDate(rsBase.Fields("fecha_programada").Value)
+                Dim horaBase As TimeSpan = fechaDia1.TimeOfDay
+
+                For dia As Integer = 2 To maxDiaAplicado
+                    Dim offsetDias As Integer = ObtenerOffsetSeguimiento(dia)
+                    Dim fechaDia As DateTime = fechaDia1.Date.AddDays(offsetDias)
+                    Dim fechaProgramada As DateTime = fechaDia.Add(horaBase)
+
+                    If fechaDia < hoy Then
+                        fechaProgramada = hoy.Add(horaBase)
+                    End If
+
+                    If fechaProgramada.Date = hoy OrElse fechaProgramada.Date = manana Then
+                        ProgramarSeguimientoSiFalta(contactoId, secuenciaId, dia, fechaProgramada)
+                    End If
+                Next
+
+                If maxDiaAplicado < 5 Then
+                    For dia As Integer = maxDiaAplicado + 1 To 5
+                        Dim offsetDias As Integer = ObtenerOffsetSeguimiento(dia)
+                        Dim fechaDia As DateTime = fechaDia1.Date.AddDays(offsetDias)
+                        Dim fechaLog As DateTime = fechaDia
+                        If fechaDia < hoy Then
+                            fechaLog = hoy
+                        End If
+                        If fechaLog = hoy OrElse fechaLog = manana Then
+                            EscribirLog("⏭️ Seguimiento día " & dia & " ignorado por maxDiaSeguimiento=" &
+                                        maxDiaSeguimiento & " (contacto " & contactoId & ")")
+                        End If
+                    Next
+                End If
+
+                rsBase.MoveNext()
+            End While
+
+            rsBase.Close()
+        Catch ex As Exception
+            EscribirLog("❌ Error ProgramarSeguimientosHoyYManana: " & ex.Message)
+        End Try
+    End Sub
+
+    Private Sub ProgramarSeguimientoSiFalta(contactoId As Integer, secuenciaId As Integer, dia As Integer, fechaProgramada As DateTime)
+        Try
+            Dim rsExiste As New ADODB.Recordset
+            Dim sqlExiste As String =
+                "SELECT ep.id " &
+                "FROM (envios_programados ep " &
+                "INNER JOIN mensajes m ON ep.mensaje_id = m.id) " &
+                "WHERE ep.contacto_id = " & contactoId & " " &
+                "AND m.dia_numero = " & dia
+
+            rsExiste.Open(sqlExiste, ba, ADODB.CursorTypeEnum.adOpenStatic, ADODB.LockTypeEnum.adLockReadOnly)
+            If Not rsExiste.EOF Then
+                rsExiste.Close()
+                Return
+            End If
+            rsExiste.Close()
+
+            Dim rsMsg As New ADODB.Recordset
+            rsMsg.Open("SELECT id FROM mensajes WHERE secuencia_maestra_id = " & secuenciaId & " AND dia_numero = " & dia,
+                       ba, ADODB.CursorTypeEnum.adOpenStatic, ADODB.LockTypeEnum.adLockReadOnly)
+            If rsMsg.EOF Then
+                rsMsg.Close()
+                EscribirLog("⚠️ No hay mensaje Día " & dia & " para secuencia " & secuenciaId &
+                            " (contacto " & contactoId & ")")
+                Return
+            End If
+
+            Dim mensajeId As Integer = CInt(rsMsg.Fields("id").Value)
+            rsMsg.Close()
+
+            Dim rsEnv As New ADODB.Recordset
+            rsEnv.Open("envios_programados", ba, ADODB.CursorTypeEnum.adOpenKeyset, ADODB.LockTypeEnum.adLockOptimistic)
+            rsEnv.AddNew()
+            rsEnv.Fields("contacto_id").Value = contactoId
+            rsEnv.Fields("secuencia_id").Value = secuenciaId
+            rsEnv.Fields("mensaje_id").Value = mensajeId
+            rsEnv.Fields("fecha_programada").Value = fechaProgramada
+            rsEnv.Fields("enviado").Value = False
+            rsEnv.Update()
+            rsEnv.Close()
+
+            EscribirLog("   ✅ Programado seguimiento Día " & dia & " para contacto " & contactoId &
+                        " | " & fechaProgramada.ToString("yyyy-MM-dd HH:mm"))
+        Catch ex As Exception
+            EscribirLog("❌ Error programando seguimiento Día " & dia & " para contacto " & contactoId & ": " &
+                        ex.Message)
+        End Try
+    End Sub
+
+    Private Function ObtenerOffsetSeguimiento(dia As Integer) As Integer
+        Select Case dia
+            Case 2
+                Return 3
+            Case 3
+                Return 6
+            Case 4
+                Return 9
+            Case 5
+                Return 14
+            Case Else
+                Return dia - 1
+        End Select
+    End Function
 
     ' ==========================================================
     ' ENVÍO 1x1 (sin tandas, sin sleep)
@@ -2244,7 +2474,7 @@ Public Class Form1
 
             ' 2) Buscar empresas elegibles (mínimo 3 contactos válidos)
             Dim sqlEmpresas As String =
-            "SELECT e.cia, e.empleados, COUNT(p.id) AS contactos_validos " &
+             "SELECT e.cia, e.empleados, e.enviarsinmixto, COUNT(p.id) AS contactos_validos " &
             "FROM listaempresas e " &
             "INNER JOIN prospectos p ON e.cia = p.cia " &
             "WHERE e.empleados < 900 " &
@@ -2256,7 +2486,7 @@ Public Class Form1
             "AND p.mail IS NOT NULL " &
             "AND p.mailincorrecto = False " &
             "AND p.tipoaudiencia IS NOT NULL " &
-            "GROUP BY e.cia, e.empleados " &
+             "GROUP BY e.cia, e.empleados, e.enviarsinmixto " &
             "HAVING COUNT(p.id) >= 3 " &
             "ORDER BY e.empleados DESC"
 
@@ -2279,6 +2509,10 @@ Public Class Form1
             While Not rsEmpresas.EOF AndAlso restantes > 0
                 Dim cia As String = rsEmpresas.Fields("cia").Value.ToString()
                 Dim contactosValidos As Integer = CInt(rsEmpresas.Fields("contactos_validos").Value)
+                Dim enviarSinMixto As Boolean = False
+                If Not IsDBNull(rsEmpresas.Fields("enviarsinmixto").Value) Then
+                    enviarSinMixto = CBool(rsEmpresas.Fields("enviarsinmixto").Value)
+                End If
 
                 EscribirLog("🏢 Evaluando empresa: " & cia & " | Contactos válidos: " & contactosValidos)
 
@@ -2339,9 +2573,13 @@ Public Class Form1
 
                 ' Validar que sea empresa mixta TI + No-TI
                 If numTI = 0 OrElse numNoTI = 0 Then
-                    EscribirLog("   ⏭️ Omitida: no es empresa mixta (TI=" & numTI & ", No-TI=" & numNoTI & ")")
-                    rsEmpresas.MoveNext()
-                    Continue While
+                    If enviarSinMixto Then
+                        EscribirLog("   ℹ️ Empresa NO mixta, pero enviarsinmixto=True → se incluye en secuencia.")
+                    Else
+                        EscribirLog("   ⏭️ Omitida: no es empresa mixta (TI=" & numTI & ", No-TI=" & numNoTI & ")")
+                        rsEmpresas.MoveNext()
+                        Continue While
+                    End If
                 End If
 
                 ' Validar de nuevo que no rebase capacidad por seguridad
