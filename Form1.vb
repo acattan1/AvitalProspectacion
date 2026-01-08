@@ -2855,4 +2855,12 @@ Public Class Form1
             EscribirLog("❌ ERROR SMTP PRUEBA: " & ex.Message)
         End Try
     End Sub
+
+    Private Sub grpAgenda_Enter(sender As Object, e As EventArgs) Handles grpAgenda.Enter
+
+    End Sub
+
+    Private Sub Button7_Click_2(sender As Object, e As EventArgs) Handles Button7.Click
+        'hola coo estas
+    End Sub
 End Class

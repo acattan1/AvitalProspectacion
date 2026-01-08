@@ -61,8 +61,9 @@ Partial Class Form1
         grpPrincipal = New GroupBox()
         grpPruebas = New GroupBox()
         grpAgenda = New GroupBox()
-        btnCorreoPrueba = New Button()
         txtcorreoprueba = New TextBox()
+        btnCorreoPrueba = New Button()
+        Button7 = New Button()
         grpPrincipal.SuspendLayout()
         grpPruebas.SuspendLayout()
         grpAgenda.SuspendLayout()
@@ -251,6 +252,14 @@ Partial Class Form1
         grpAgenda.TabStop = False
         grpAgenda.Text = "Agenda (nuevos) - Mensaje 1"
         ' 
+        ' txtcorreoprueba
+        ' 
+        txtcorreoprueba.Location = New Point(746, 23)
+        txtcorreoprueba.Name = "txtcorreoprueba"
+        txtcorreoprueba.Size = New Size(100, 23)
+        txtcorreoprueba.TabIndex = 3
+        txtcorreoprueba.Text = "abraham@avital.mx"
+        ' 
         ' btnCorreoPrueba
         ' 
         btnCorreoPrueba.Location = New Point(476, 22)
@@ -260,19 +269,21 @@ Partial Class Form1
         btnCorreoPrueba.Text = "PROBAR ENVIAR 1 (AHORA)"
         btnCorreoPrueba.UseVisualStyleBackColor = True
         ' 
-        ' txtcorreoprueba
+        ' Button7
         ' 
-        txtcorreoprueba.Location = New Point(746, 23)
-        txtcorreoprueba.Name = "txtcorreoprueba"
-        txtcorreoprueba.Size = New Size(100, 23)
-        txtcorreoprueba.TabIndex = 3
-        txtcorreoprueba.Text = "abraham@avital.mx"
+        Button7.Location = New Point(922, 9)
+        Button7.Name = "Button7"
+        Button7.Size = New Size(75, 23)
+        Button7.TabIndex = 5
+        Button7.Text = "Button7"
+        Button7.UseVisualStyleBackColor = True
         ' 
         ' Form1
         ' 
         AutoScaleDimensions = New SizeF(7F, 15F)
         AutoScaleMode = AutoScaleMode.Font
         ClientSize = New Size(1006, 705)
+        Controls.Add(Button7)
         Controls.Add(txtlog)
         Controls.Add(grpPruebas)
         Controls.Add(grpAgenda)
@@ -291,5 +302,6 @@ Partial Class Form1
 
     Friend WithEvents btnCorreoPrueba As Button
     Friend WithEvents txtcorreoprueba As TextBox
+    Friend WithEvents Button7 As Button
 
 End Class
